@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -13,23 +14,24 @@ type CacheResponse struct {
 	http.Response
 }
 
-var inMemCaches map[string]*CacheResponse
-
 /**
  * NewCacheResponse
  *
  * Creates a new cache response by fetching the resUrl parameter value.
  */
-func NewCacheResponse(resUrl string) *CacheResponse {
+func NewCacheResponse(resUrl string) (key string) {
+	key = getSha512Sum(resUrl)
+
 	if cache := fetch(resUrl); cache != nil {
-		return mkCacheFrom(cache)
+		mkCacheFrom(cache)
+		return
 	}
 
-	return getCache(resUrl)
+	return
 }
 
-func fetch(resUrl string) *http.Response {
-	if err := atmptLoadStoredCache(resUrl); err == nil {
+var fetch = func(resUrl string) *http.Response {
+	if _, err := atmptLoadStoredCache(resUrl); err == nil {
 		return nil
 	}
 
@@ -52,16 +54,20 @@ func fetch(resUrl string) *http.Response {
 	return res
 }
 
-func atmptLoadStoredCache(resUrl string) error {
-	return nil
+var atmptLoadStoredCache = func(resUrl string) (*CacheResponse, error) {
+	return nil, errors.New("not implemented")
 }
 
-func mkCacheFrom(res *http.Response) *CacheResponse {
+var mkCacheFrom = func(res *http.Response) *CacheResponse {
 	return &CacheResponse{}
 }
 
-func getCache(resUrl string) *CacheResponse {
-	return inMemCaches[getSha512Sum(resUrl)]
+var getCache = func(resUrl string) *CacheResponse {
+	sum := getSha512Sum(resUrl)
+
+	log.Println(sum)
+
+	return &CacheResponse{}
 }
 
 func (res *CacheResponse) Delete() {}
