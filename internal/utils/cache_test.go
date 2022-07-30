@@ -2,6 +2,7 @@ package utils
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"testing"
 	"time"
@@ -10,6 +11,8 @@ import (
 var testInMemCaches = make(map[string]*CacheResponse, 4)
 
 var fakeFetch = func(resUrl string) *http.Response {
+	log.Println("called fakeFetch!")
+
 	testHdr := http.Header{}
 
 	testHdr.Add("X-TESTING-MODE", "blahblah")
@@ -23,6 +26,8 @@ var fakeFetch = func(resUrl string) *http.Response {
 }
 
 var fakeAtmptLoadStoredCache = func(resUrl string) (*CacheResponse, error) {
+	log.Println("called fakeAtmptLoadStoredCache")
+
 	if cache, exists := testInMemCaches[getSha512Sum(resUrl)]; !exists {
 		return nil, errors.New("error: unable to load in-mem cache.")
 	} else {
@@ -31,15 +36,22 @@ var fakeAtmptLoadStoredCache = func(resUrl string) (*CacheResponse, error) {
 }
 
 var fakeMkCacheFrom = func(res *http.Response) *CacheResponse {
+	log.Println("called fakeMkCacheFrom")
+
 	sum := getSha512Sum(res.Header.Get("X-TESTING-URL"))
 
-	return &CacheResponse{
-		e_at:       time.Now(),
-		cache_path: sum,
+	testInMemCaches[sum] = &CacheResponse{
+		E_at:       time.Now(),
+		Cache_path: sum,
+		Response:   res,
 	}
+
+	return testInMemCaches[sum]
 }
 
 var fakeGetCache = func(resUrl string) *CacheResponse {
+	log.Println("called fakeGetCache")
+
 	cache, _ := fakeAtmptLoadStoredCache(resUrl)
 	return cache
 }
@@ -58,9 +70,9 @@ func Test_NewCacheResponse(t *testing.T) {
 
 	for _, T := range tests {
 		unloadFakeFuncs := loadFakeFuncs()
-		res := NewCacheResponse(T.input)
+		_, key := NewCacheResponse(T.input)
 
-		if T.expected != res {
+		if T.expected != key {
 			t.Errorf("(fail) input: %s (expected: %s)", T.input, T.expected)
 			continue
 		}
@@ -68,7 +80,7 @@ func Test_NewCacheResponse(t *testing.T) {
 		var fakeRes *CacheResponse
 
 		// Check if the map `testInMemCaches` declared above is populated as expected.
-		if testRes, exists := testInMemCaches[res]; !exists {
+		if testRes, exists := testInMemCaches[key]; !exists {
 			t.Errorf("(fail) input: %s (did not populate testInMemCaches properly)", T.input)
 			continue
 		} else {
@@ -79,7 +91,7 @@ func Test_NewCacheResponse(t *testing.T) {
 			fakeRes.StatusCode != 200 &&
 			fakeRes.Header.Get("X-TESTING-MODE") != "blahblah" &&
 			fakeRes.Header.Get("X-TESTING-URL") != T.input &&
-			fakeRes.cache_path != T.expected {
+			fakeRes.Cache_path != T.expected {
 
 			t.Errorf("(fail) input: %s (did not contain the expected testing headers and response fields)", T.input)
 			continue
@@ -88,6 +100,13 @@ func Test_NewCacheResponse(t *testing.T) {
 		unloadFakeFuncs()
 
 		// Using the real implementation of fetch, we test NewCacheResponse.
+		res, rkey := NewCacheResponse(T.input)
+
+		defer res.Body.Close()
+
+		if rkey != key {
+			t.Errorf("(fail) input: %s (did not match the output fake key.", T.input)
+		}
 
 	}
 }
