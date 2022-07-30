@@ -2,6 +2,7 @@ package utils
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"testing"
@@ -104,10 +105,13 @@ func Test_NewCacheResponse(t *testing.T) {
 
 		defer res.Body.Close()
 
-		if rkey != key {
+		if rkey != T.expected {
 			t.Errorf("(fail) input: %s (did not match the output fake key.", T.input)
 		}
 
+		if res.Cache_path != fmt.Sprintf("/tmp/go-tmp/%s", T.expected) {
+			t.Errorf("(fail) input: %s (did not match the expected path).", rkey)
+		}
 	}
 }
 
