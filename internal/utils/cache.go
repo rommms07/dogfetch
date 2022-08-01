@@ -7,13 +7,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
 
 var (
 	savedCachePath = "/tmp/go-tmp/"
-	cacheSep       = []byte("\n========= NEXT CONTENT ========\n")
 	inMemCacheMap  = make(map[string]*CacheResponse)
+	mu             sync.Mutex
 )
 
 func init() {
@@ -36,7 +37,9 @@ func NewCacheResponse(resUrl string) (cacheRes *CacheResponse, key string) {
 
 	if res := fetch(resUrl); res != nil {
 		cacheRes = mkCacheFrom(res)
+		mu.Lock()
 		inMemCacheMap[key] = cacheRes
+		mu.Unlock()
 	}
 
 	return

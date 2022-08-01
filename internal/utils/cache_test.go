@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 )
@@ -113,6 +114,40 @@ func Test_NewCacheResponse(t *testing.T) {
 			t.Errorf("(fail) input: %s (did not match the expected path).", rkey)
 		}
 	}
+}
+
+func Test_NewCacheResponseConcurrently(t *testing.T) {
+	tests := []*TestCase{
+		{
+			input:    "https://www.google.com",
+			expected: "20f5081d41a27c45e6cd7a7401cd97e0738a9be6ffc5897ad7d9b2dded3e4041f2208f46a2696bd86b1549f2482ebf7c4fc8cdaf9b68e454ed65b85b0dabe55b",
+		},
+		{
+			input:    "https://pkg.go.dev/net/http#Response",
+			expected: "b1a55f9d8889180abdb857601aead967d84de6f4203c163dfb43443d38d827f2bebc09789e0d09780e1da70858dec366c48683acc112602a9b78a354ace4004b",
+		},
+		{
+			input:    "https://www.dogbreedslist.info/dog-breeds-a-z/",
+			expected: "045c9213005d9bcc5406444f2cfdf4822efc8119c477e6e06c780d81fa9b8016ae99884b94963b5deb12915e8a7d2c78caf505372d171f253ce7dae61e622b4e",
+		},
+		{
+			input:    "https://md5calc.com/hash",
+			expected: "575fb14210d6dd626f190719dfd4f3f03ae04702e29fddafb532fda686df8452ecaabbf2bd5f24eacb7916f70b7e89717787a69ac4f12ca1f1495c37a5d54340",
+		},
+	}
+
+	var wg sync.WaitGroup
+
+	for _, T := range tests {
+		wg.Add(1)
+		go func(input string) {
+			res, _ := NewCacheResponse(input)
+			res.Body.Close()
+			wg.Done()
+		}(T.input)
+	}
+
+	wg.Wait()
 }
 
 func loadFakeFuncs() (unloadFakeFuncs func()) {
