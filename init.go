@@ -19,11 +19,11 @@ var (
 	// properties of bufferred channels. In this case we limit the number of parallel HTTP request by
 	// 50.
 	queue       = make(chan string, 50)
-	fetchResult = []string{}
+	fetchResult = make(map[string]*breedInfo)
 	isTesting   = regexp.MustCompile(`^-test(.+)$`).MatchString(os.Args[1])
 )
 
-func fetchDogBreeds() (dogs []string) {
+func fetchDogBreeds() (dogs map[string]*breedInfo) {
 	/**
 
 	 */
@@ -51,7 +51,7 @@ func fetchDogBreeds() (dogs []string) {
 	}
 
 	wg.Wait()
-	dogs = append(dogs, fetchResult...)
+	dogs = fetchResult
 	return
 }
 
@@ -64,15 +64,15 @@ func crawlPage(path string) {
 		log.Fatalf("error reading bytes (err: %v)", err)
 	}
 
-	patt := regexp.MustCompile(`<h1>(?P<name>.+?)</h1>`)
-	indexes := patt.FindSubmatchIndex(P)
-
-	println(string(patt.Expand([]byte{}, []byte("$name"), P, indexes)))
-
 	mu.Lock()
-	fetchResult = append(fetchResult, string(P))
+	fetchResult[path] = digPage(P)
 	mu.Unlock()
 
 	wg.Done()
 	<-queue
+}
+
+func digPage(P []byte) *breedInfo {
+	log.Fatal("not implemented!")
+	return &breedInfo{}
 }
