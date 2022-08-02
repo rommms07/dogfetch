@@ -11,8 +11,14 @@ import (
 )
 
 var (
-	mu          sync.Mutex
-	wg          sync.WaitGroup
+	mu sync.Mutex
+	wg sync.WaitGroup
+
+	// Usually making a series of concurrent HTTP request into the server causes an Internal Server Error
+	// on the server, to avoid that issue, we limit the number of concurrent request up to N by utilizing the
+	// properties of bufferred channels. In this case we limit the number of parallel HTTP request by
+	// 50.
+	queue       = make(chan string, 50)
 	fetchResult = []string{}
 	isTesting   = regexp.MustCompile(`^-test(.+)$`).MatchString(os.Args[1])
 )
@@ -39,7 +45,7 @@ func fetchDogBreeds() (dogs []string) {
 
 	for _, indexes := range patt.FindAllSubmatchIndex(P, -1) {
 		pagePath := string(patt.Expand([]byte{}, []byte(`$page`), P, indexes))
-
+		queue <- pagePath
 		wg.Add(1)
 		go crawlPage(pagePath)
 	}
@@ -58,10 +64,15 @@ func crawlPage(path string) {
 		log.Fatalf("error reading bytes (err: %v)", err)
 	}
 
+	patt := regexp.MustCompile(`<h1>(?P<name>.+?)</h1>`)
+	indexes := patt.FindSubmatchIndex(P)
+
+	println(string(patt.Expand([]byte{}, []byte("$name"), P, indexes)))
+
 	mu.Lock()
 	fetchResult = append(fetchResult, string(P))
 	mu.Unlock()
 
 	wg.Done()
-
+	<-queue
 }
