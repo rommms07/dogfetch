@@ -1,8 +1,6 @@
 package utils
 
 import (
-	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -10,9 +8,9 @@ import (
 	"time"
 )
 
-var testInMemCaches = make(map[string]*CacheResponse, 4)
+var testInMemCaches = make(map[string]*CacheResponse)
 
-var fakeFetch = func(resUrl string) *http.Response {
+var fakeFetch = func(resUrl string) (cache *http.Response) {
 	log.Println("called fakeFetch!")
 
 	testHdr := http.Header{}
@@ -27,20 +25,10 @@ var fakeFetch = func(resUrl string) *http.Response {
 	}
 }
 
-var fakeAtmptLoadStoredCache = func(resUrl string) (*CacheResponse, error) {
-	log.Println("called fakeAtmptLoadStoredCache")
-
-	if cache, exists := testInMemCaches[getSha512Sum(resUrl)]; !exists {
-		return nil, errors.New("error: unable to load in-mem cache.")
-	} else {
-		return cache, nil
-	}
-}
-
-var fakeMkCacheFrom = func(res *http.Response) *CacheResponse {
+var fakeMkCacheFrom = func(resUrl string, res *http.Response) *CacheResponse {
 	log.Println("called fakeMkCacheFrom")
 
-	sum := getSha512Sum(res.Header.Get("X-TESTING-URL"))
+	sum := getSha512Sum(resUrl)
 
 	testInMemCaches[sum] = &CacheResponse{
 		E_at:       time.Now(),
@@ -53,9 +41,7 @@ var fakeMkCacheFrom = func(res *http.Response) *CacheResponse {
 
 var fakeGetCache = func(resUrl string) *CacheResponse {
 	log.Println("called fakeGetCache")
-
-	cache, _ := fakeAtmptLoadStoredCache(resUrl)
-	return cache
+	return testInMemCaches[getSha512Sum(resUrl)]
 }
 
 func Test_NewCacheResponse(t *testing.T) {
@@ -103,15 +89,14 @@ func Test_NewCacheResponse(t *testing.T) {
 
 		// Using the real implementation of fetch, we test NewCacheResponse.
 		res, rkey := NewCacheResponse(T.input)
-
 		defer res.Body.Close()
 
 		if rkey != T.expected {
 			t.Errorf("(fail) input: %s (did not match the output fake key.", T.input)
 		}
 
-		if res.Cache_path != fmt.Sprintf("/tmp/go-tmp/%s", T.expected) {
-			t.Errorf("(fail) input: %s (did not match the expected path).", rkey)
+		if res.Cache_path != savedCachePath+T.expected {
+			t.Errorf("(fail) input: %s (did not match the expected path).\n\t(output: %v)", rkey, res.Cache_path)
 		}
 	}
 }
@@ -153,19 +138,16 @@ func Test_NewCacheResponseConcurrently(t *testing.T) {
 func loadFakeFuncs() (unloadFakeFuncs func()) {
 	var savedFetch = fetch
 	var savedGetCache = getCache
-	var savedAtmptLoadStoredCache = atmptLoadStoredCache
 	var savedMkCacheFrom = mkCacheFrom
 
 	// Substitute fake functions
 	fetch = fakeFetch
 	getCache = fakeGetCache
-	atmptLoadStoredCache = fakeAtmptLoadStoredCache
 	mkCacheFrom = fakeMkCacheFrom
 
 	unloadFakeFuncs = func() {
 		fetch = savedFetch
 		getCache = savedGetCache
-		atmptLoadStoredCache = savedAtmptLoadStoredCache
 		mkCacheFrom = savedMkCacheFrom
 	}
 

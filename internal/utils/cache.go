@@ -2,19 +2,15 @@ package utils
 
 import (
 	"encoding/json"
-	"errors"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"sync"
 	"time"
 )
 
 var (
 	savedCachePath = "/tmp/go-tmp/"
-	inMemCacheMap  = make(map[string]*CacheResponse)
-	mu             sync.Mutex
 )
 
 func init() {
@@ -35,21 +31,18 @@ type CacheResponse struct {
 func NewCacheResponse(resUrl string) (cacheRes *CacheResponse, key string) {
 	key = getSha512Sum(resUrl)
 
+	if cacheRes = getCache(resUrl); cacheRes != nil {
+		return
+	}
+
 	if res := fetch(resUrl); res != nil {
-		cacheRes = mkCacheFrom(res)
-		mu.Lock()
-		inMemCacheMap[key] = cacheRes
-		mu.Unlock()
+		cacheRes = mkCacheFrom(resUrl, res)
 	}
 
 	return
 }
 
-var fetch = func(resUrl string) *http.Response {
-	if _, err := atmptLoadStoredCache(resUrl); err == nil {
-		return nil
-	}
-
+var fetch = func(resUrl string) (cache *http.Response) {
 	req, err := http.NewRequest(http.MethodGet, resUrl, nil)
 	if err != nil {
 		log.Fatalf("Something went wrong while creating a new request. (err: %v)", err)
@@ -65,18 +58,8 @@ var fetch = func(resUrl string) *http.Response {
 	return res
 }
 
-var atmptLoadStoredCache = func(resUrl string) (*CacheResponse, error) {
-	return nil, errors.New("not implemented")
-}
-
-var mkCacheFrom = func(res *http.Response) (cache *CacheResponse) {
-	reqUrl := res.Request.URL.String()
-
-	if cache = getCache(reqUrl); cache != nil && cache.E_at.UnixMilli() > time.Now().UnixMilli() {
-		return
-	}
-
-	sum := getSha512Sum(reqUrl)
+var mkCacheFrom = func(resUrl string, res *http.Response) (cache *CacheResponse) {
+	sum := getSha512Sum(resUrl)
 	cachePath := savedCachePath + sum
 
 	cacheContent, err := os.Create(cachePath + ".cache")
@@ -117,22 +100,23 @@ var mkCacheFrom = func(res *http.Response) (cache *CacheResponse) {
 	cacheContent.Write(resBody)
 	cacheContent.Close()
 
-	return getCache(reqUrl)
+	return getCache(resUrl)
 }
 
-var getCache = func(resUrl string) *CacheResponse {
-	cachePath := savedCachePath + getSha512Sum(resUrl)
+var getCache = func(resUrl string) (cache *CacheResponse) {
+	key := getSha512Sum(resUrl)
+	cachePath := savedCachePath + key
 
 	P, err := ioutil.ReadFile(cachePath + ".json")
 	if err != nil {
 		return nil
 	}
 
-	cache := &CacheResponse{}
+	cache = &CacheResponse{}
 
 	err = json.Unmarshal(P, cache)
 	if err != nil {
-		log.Fatalf("cannot unmarshal cache. (error: %v)", cache)
+		log.Fatalf("cannot unmarshal cache. (error: %v)", err)
 	}
 
 	cacheContent, err := os.Open(cachePath + ".cache")
@@ -141,7 +125,5 @@ var getCache = func(resUrl string) *CacheResponse {
 	}
 
 	cache.Body = cacheContent
-	return cache
+	return
 }
-
-func (res *CacheResponse) Delete() {}
