@@ -39,12 +39,12 @@ func fetchDogBreeds() (dogs []string) {
 
 	for _, indexes := range patt.FindAllSubmatchIndex(P, -1) {
 		pagePath := string(patt.Expand([]byte{}, []byte(`$page`), P, indexes))
+
 		wg.Add(1)
 		go crawlPage(pagePath)
 	}
 
 	wg.Wait()
-
 	dogs = append(dogs, fetchResult...)
 	return
 }
