@@ -8,15 +8,15 @@ const (
 	Source3             = "https://www.thekennelclub.org.uk"
 )
 
-type breedInfo struct {
-	id           int
-	name         string
-	size         string
-	colors       []string
-	temperaments []string
-	otherNames   []string
-	breedGroups  []string
-	breedChars   map[string]int
-	breedRecs    []int
-	refs         []string
+type BreedInfo struct {
+	Id           int
+	Name         string
+	Size         string
+	Colors       []string
+	Temperaments []string
+	OtherNames   []string
+	BreedGroups  []string
+	BreedChars   map[string]int
+	BreedRecs    []int
+	Refs         []string
 }
