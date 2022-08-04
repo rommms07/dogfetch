@@ -5,7 +5,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -24,7 +23,6 @@ var (
 	// 50.
 	queue       = make(chan string, 50)
 	fetchResult = make(BreedInfos)
-	isTesting   = regexp.MustCompile(`^-test(.+)$`).MatchString(os.Args[1])
 )
 
 func fetchDogBreeds() (dogs map[string]*BreedInfo) {

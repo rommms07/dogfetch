@@ -18,6 +18,10 @@ type BreedInfo struct {
 	Refs         []string         `json:"refs"`
 }
 
+func init() {
+	fetchDogBreeds()
+}
+
 type BreedInfos map[string]*BreedInfo
 
 func (bis BreedInfos) GetByName(name string) (res *BreedInfo) {
@@ -39,4 +43,8 @@ func (bis BreedInfos) GetByName(name string) (res *BreedInfo) {
 
 	wg.Wait()
 	return
+}
+
+func GetByName(name string) (res *BreedInfo) {
+	return fetchResult.GetByName(name)
 }
