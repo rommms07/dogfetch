@@ -1,10 +1,13 @@
 package dogfetch_test
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"net/url"
 	"testing"
 
 	"github.com/rommms07/dogfetch"
+	"github.com/rommms07/dogfetch/internal/utils"
 )
 
 type expTestResults struct {
@@ -35,6 +38,12 @@ func Test_crawlPage(t *testing.T) {
 		{
 			breedInfo: &dogfetch.BreedInfo{
 				Name: "Australian Shepherd",
+				Refs: []string{
+					"https://www.dogbreedslist.info/all-dog-breeds/miniature-american-shepherd.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/border-collie.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/shetland-sheepdog.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/australian-cattle-dog.html",
+				},
 				OtherNames: []string{
 					"Aussie",
 					"Little Blue Dog",
@@ -44,6 +53,12 @@ func Test_crawlPage(t *testing.T) {
 		{
 			breedInfo: &dogfetch.BreedInfo{
 				Name: "American Cocker Spaniel",
+				Refs: []string{
+					"https://www.dogbreedslist.info/all-dog-breeds/english-cocker-spaniel.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/english-springer-spaniel.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/cavalier-king-charles-spaniel.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/cockapoo.html",
+				},
 				OtherNames: []string{
 					"Cocker Spaniel",
 					"Cocker",
@@ -54,6 +69,12 @@ func Test_crawlPage(t *testing.T) {
 		{
 			breedInfo: &dogfetch.BreedInfo{
 				Name: "Alano Espanol",
+				Refs: []string{
+					"https://www.dogbreedslist.info/all-dog-breeds/cockapoo.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/argentine-dogo.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/rottweiler.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/american-akita.html",
+				},
 				OtherNames: []string{
 					"Spanish Alano",
 					"Spanish Bulldog",
@@ -64,8 +85,28 @@ func Test_crawlPage(t *testing.T) {
 		{
 			breedInfo: &dogfetch.BreedInfo{
 				Name: "American Staghound",
+				Refs: []string{
+					"https://www.dogbreedslist.info/all-dog-breeds/bull-arab.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/scottish-deerhound.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/irish-wolfhound.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/catahoula-leopard-dog.html",
+				},
 				OtherNames: []string{
 					"Staghound",
+				},
+			},
+		},
+		{
+			breedInfo: &dogfetch.BreedInfo{
+				Name: "Yorkshire Terrier",
+				Refs: []string{
+					"https://www.dogbreedslist.info/all-dog-breeds/shih-tzu.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/maltese-dog.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/chihuahua.html",
+					"https://www.dogbreedslist.info/all-dog-breeds/pomeranian.html",
+				},
+				OtherNames: []string{
+					"Yorkie",
 				},
 			},
 		},
@@ -78,6 +119,7 @@ func Test_crawlPage(t *testing.T) {
 		}
 
 		path := resUrl.Path
+		sum := utils.GetMd5Sum(path)
 
 		dogfetch.Queue <- path
 		dogfetch.WGroup.Add(1)
@@ -85,7 +127,7 @@ func Test_crawlPage(t *testing.T) {
 
 		dogfetch.WGroup.Wait()
 
-		res := dogfetch.FetchResults[path]
+		res := dogfetch.FetchResults[sum]
 		expect := expectedResults[i]
 
 		if res.Name != expect.breedInfo.Name {
@@ -121,4 +163,7 @@ func Test_crawlPage(t *testing.T) {
 			}
 		}
 	}
+
+	P, _ := json.Marshal(dogfetch.FetchResults)
+	ioutil.WriteFile("/tmp/breeds.json", P, 0650)
 }
