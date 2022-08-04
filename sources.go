@@ -9,14 +9,17 @@ const (
 )
 
 type BreedInfo struct {
-	Id           int
+	Id           string
+	Type         string
 	Name         string
-	Size         string
+	Size         []string
+	Origin       []string
 	Colors       []string
+	Images       []string
 	Temperaments []string
 	OtherNames   []string
 	BreedGroups  []string
 	BreedChars   map[string]int
-	BreedRecs    []int
+	BreedRecs    []string
 	Refs         []string
 }
