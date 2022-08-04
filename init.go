@@ -1,10 +1,13 @@
 package dogfetch
 
 import (
+	"encoding/json"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -20,14 +23,21 @@ var (
 	// properties of bufferred channels. In this case we limit the number of parallel HTTP request by
 	// 50.
 	queue       = make(chan string, 50)
-	fetchResult = make(map[string]*BreedInfo)
+	fetchResult = make(BreedInfos)
 	isTesting   = regexp.MustCompile(`^-test(.+)$`).MatchString(os.Args[1])
 )
 
 func fetchDogBreeds() (dogs map[string]*BreedInfo) {
-	/**
+	if P, err := ioutil.ReadFile("/tmp/breeds.json"); err == nil {
+		err := json.Unmarshal(P, &fetchResult)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	 */
+		dogs = fetchResult
+		return
+	}
+
 	const (
 		listBreeds = string(Source1) + "/dog-breeds-a-z/"
 		s2Search   = string(Source2) + "/search/"
@@ -35,7 +45,6 @@ func fetchDogBreeds() (dogs map[string]*BreedInfo) {
 	)
 
 	patt := regexp.MustCompile(`<dd><a href="(?P<page>/all-dog-breeds/[^.]+.html)">.+?</a></dd>`)
-
 	pageListRes, _ := utils.NewCacheResponse(listBreeds)
 
 	defer pageListRes.Body.Close()
@@ -53,6 +62,13 @@ func fetchDogBreeds() (dogs map[string]*BreedInfo) {
 
 	wg.Wait()
 	dogs = fetchResult
+
+	if P, err := json.Marshal(dogs); err != nil {
+		err := ioutil.WriteFile("/tmp/breeds.json", P, 0660)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	return
 }
 
@@ -80,31 +96,42 @@ func crawlPage(path string) {
 }
 
 func digPage(P []byte) (bi *BreedInfo) {
-	bi = &BreedInfo{}
+	bi = &BreedInfo{
+		BreedChars: make(map[string]int64),
+	}
 
 	mainFmt := `(?m)(?s)<div class="content">(.|\n)*?`
 	namePatt := regexp.MustCompile(mainFmt + `<h1>(?P<name>[^<]+)<\/h1>`)
+	imagesPatt := regexp.MustCompile(mainFmt + `<div class="slideshow">(?P<images>.+?)<table class="table-03">.*?`)
 	refsPatt := regexp.MustCompile(mainFmt + `(<div class="like">|<h3>References</h3>)(?P<url>.+)<\/ul>`)
 	otherNamesPatt := regexp.MustCompile(mainFmt + `<td>Other names<\/td>.*?<td>(?P<otherNames>[^<]+?)<\/td>`)
 	breedGroupsPatt := regexp.MustCompile(mainFmt + `<td>Breed Group<\/td>.*?<td>(?P<breedGroups>.+?)<\/td>`)
 	originPatt := regexp.MustCompile(mainFmt + `<td>Origin<\/td>.*?<td class\="flag">(?P<origin>.+?)(<\/td>)`)
 	sizePatt := regexp.MustCompile(mainFmt + `<td>Size</td>.*?<td>(?P<size>.+?)<\/td>`)
+	tempPatt := regexp.MustCompile(mainFmt + `<td>Temperament<\/td>.*?<td>*(?P<temperaments>.+?)<\/td>`)
+	colorsPatt := regexp.MustCompile(mainFmt + `<td>Colors<\/td>.*?<td>*(?P<colors>.+?)<\/td>`)
+	typePatt := regexp.MustCompile(mainFmt + `<td>Type<\/td>.*?<td>(?P<type>.+?)<\/td>`)
+	charsPatt := regexp.MustCompile(mainFmt + `<table class="table-02">.*?<tbody>.*Breed Characteristics.*?(?P<chars>.+?)<\/tbody>.*?<\/table>`)
 
 	indices := namePatt.FindSubmatchIndex(P)
 	bi.Name = string(namePatt.Expand([]byte{}, []byte(`$name`), P, indices))
+
+	indices = typePatt.FindSubmatchIndex(P)
+	bi.Type = string(typePatt.Expand([]byte{}, []byte(`$type`), P, indices))
 
 	indices = refsPatt.FindSubmatchIndex(P)
 	refs := refsPatt.Expand([]byte{}, []byte(`$url`), P, indices)
 	hrefPatt := regexp.MustCompile(`href="(?P<url>.+?)"`)
 	for _, indices := range hrefPatt.FindAllSubmatchIndex(refs, -1) {
 		href := string(hrefPatt.Expand([]byte{}, []byte(`$url`), refs, indices))
-		bi.Refs = append(bi.Refs, string(Source1)+href)
 
 		if strings.Contains(href, "//") {
 			href = regexp.MustCompile(`^//`).ReplaceAllString(href, "https://")
+			bi.Refs = append(bi.Refs, href)
 			continue
 		}
 
+		bi.Refs = append(bi.Refs, string(Source1)+href)
 		bi.BreedRecs = append(bi.BreedRecs, utils.GetMd5Sum(href))
 	}
 
@@ -114,21 +141,62 @@ func digPage(P []byte) (bi *BreedInfo) {
 		bi.OtherNames = cleanStrings(bi.OtherNames)
 	}
 
-	indices = originPatt.FindSubmatchIndex(P)
-	origins := string(originPatt.Expand([]byte{}, []byte(`$origin`), P, indices))
-	origins = removeMisc(origins)
-	bi.Origin = cleanResults(strings.Split(origins, "</p>"))
+	bi.Origin = getResults(originPatt, "</p>", []byte(`$origin`), P)
+	bi.BreedGroups = getResults(breedGroupsPatt, "</p>", []byte(`$breedGroups`), P)
+	bi.Size = getResults(sizePatt, "to", []byte(`$size`), P)
+	bi.Temperaments = getResults(tempPatt, "</p>", []byte(`$temperaments`), P)
+	bi.Colors = func() []string {
+		results := getResults(colorsPatt, "</p>", []byte(`$colors`), P)
+		maps := make(map[string]int)
+		for _, val := range results {
+			maps[val] = 1
+		}
 
-	indices = breedGroupsPatt.FindSubmatchIndex(P)
-	breedGroups := string(breedGroupsPatt.Expand([]byte{}, []byte(`$breedGroups`), P, indices))
-	breedGroups = removeMisc(breedGroups)
-	bi.BreedGroups = cleanResults(strings.Split(breedGroups, "</p>"))
+		results = make([]string, 0)
 
-	indices = sizePatt.FindSubmatchIndex(P)
-	size := string(sizePatt.Expand([]byte{}, []byte(`$size`), P, indices))
-	size = removeMisc(size)
-	bi.Size = cleanResults(strings.Split(size, "to"))
+		for k := range maps {
+			results = append(results, k)
+		}
+
+		return results
+	}()
+
+	indices = charsPatt.FindSubmatchIndex(P)
+	chars := charsPatt.Expand([]byte{}, []byte(`$chars`), P, indices)
+	charsTypePatt := regexp.MustCompile(`(?m)<td>(?P<type>[A-Za-z ]*?)</td>(.|\n)*?<p class="star-0\d">(?P<score>\d) stars<\/p>`)
+
+	for _, indices := range charsTypePatt.FindAllSubmatchIndex(chars, -1) {
+		chars := strings.Split(string(charsTypePatt.Expand([]byte{}, []byte(`$type,$score`), chars, indices)), ",")
+
+		if len(chars[0]) == 0 {
+			continue
+		}
+
+		score, err := strconv.ParseInt(chars[1], 10, 64)
+		if err != nil {
+			score = 0
+		}
+
+		bi.BreedChars[strings.TrimSpace(chars[0])] = score
+	}
+
+	indices = imagesPatt.FindSubmatchIndex(P)
+	images := imagesPatt.Expand([]byte{}, []byte(`$images`), P, indices)
+	srcPatt := regexp.MustCompile(`<img.*?src="(?P<imageSrc>\/uploads\/dog-pictures\/[^"]+)"`)
+
+	for _, indices := range srcPatt.FindAllSubmatchIndex(images, -1) {
+		src := string(srcPatt.Expand([]byte{}, []byte(`$imageSrc`), images, indices))
+		bi.Images = append(bi.Images, string(Source1)+src)
+	}
+
 	return
+}
+
+func getResults(patt *regexp.Regexp, sep string, tmp, P []byte) []string {
+	indices := patt.FindSubmatchIndex(P)
+	results := string(patt.Expand([]byte{}, []byte(tmp), P, indices))
+	results = removeMisc(results)
+	return cleanResults(strings.Split(results, sep))
 }
 
 func cleanResults(S []string) (s []string) {
