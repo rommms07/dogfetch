@@ -1,6 +1,8 @@
 package dogfetch
 
-import "sync"
+import (
+	"sync"
+)
 
 type BreedInfo struct {
 	Id           string           `json:"id"`
@@ -45,6 +47,14 @@ func (bis BreedInfos) GetByName(name string) (res *BreedInfo) {
 	return
 }
 
+func GetById(id string) *BreedInfo {
+	return fetchResult[id]
+}
+
 func GetByName(name string) (res *BreedInfo) {
 	return fetchResult.GetByName(name)
+}
+
+func GetAll() BreedInfos {
+	return fetchResult
 }
