@@ -139,6 +139,8 @@ func digPage(P []byte) (bi *BreedInfo) {
 		bi.OtherNames = cleanStrings(bi.OtherNames)
 	}
 
+	bi.OtherNames = uniqueSet(bi.OtherNames)
+
 	bi.Origin = getResults(originPatt, "</p>", []byte(`$origin`), P)
 	bi.BreedGroups = getResults(breedGroupsPatt, "</p>", []byte(`$breedGroups`), P)
 	bi.Size = getResults(sizePatt, "to", []byte(`$size`), P)
@@ -229,4 +231,19 @@ func cleanStrings(S []string) []string {
 
 func removeMisc(s string) string {
 	return regexp.MustCompile(`(<img .*?>\s|&nbsp;|<p>|\n|\r|<a .*?>|</a>)`).ReplaceAllString(s, "")
+}
+
+func uniqueSet(sub []string) []string {
+	var M = make(map[string]bool)
+	var res = make([]string, 0)
+
+	for _, name := range sub {
+		M[name] = true
+	}
+
+	for name := range M {
+		res = append(res, name)
+	}
+
+	return res
 }
