@@ -111,10 +111,8 @@ func digPage(P []byte) (bi *BreedInfo) {
 	typePatt := regexp.MustCompile(mainFmt + `<td>Type<\/td>.*?<td>(?P<type>.+?)<\/td>`)
 	charsPatt := regexp.MustCompile(mainFmt + `<table class="table-02">.*?<tbody>.*Breed Characteristics.*?(?P<chars>.+?)<\/tbody>.*?<\/table>`)
 	lspanPatt := regexp.MustCompile(mainFmt + `<td>Life span<\/td>.*?<td>(?P<start>[\d]+?)-(?P<end>[\d]+?).+?<\/td>`)
-	litterSizePatt := regexp.MustCompile(mainFmt + `<td>Litter Size<\/td>.*?<td>(?P<start>[\d]+?)-(?P<end>[\d]+?)<\/td>`)
+	litterSizePatt := regexp.MustCompile(mainFmt + `<td>Litter Size<\/td>.*?<td>(?P<start>[\d]+?)-(?P<end>[\d]+?).+?<\/td>`)
 	historyPatt := regexp.MustCompile(mainFmt + `<h2>History<\/h2>.*?<div class\="fold-text">.*?<p>(?P<history>.+?)<\/p>`)
-	// heightPatt := regexp.MustCompile(mainFmt + ``)
-	// weightPatt := regexp.MustCompile(mainFmt + ``)
 
 	indices := namePatt.FindSubmatchIndex(P)
 	bi.Name = string(namePatt.Expand([]byte{}, []byte(`$name`), P, indices))
