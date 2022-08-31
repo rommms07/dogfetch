@@ -6,12 +6,15 @@ import (
 
 type BreedInfo struct {
 	Id           string           `json:"id"`
+	History      string           `json:"history"`
 	Type         string           `json:"type"`
 	Name         string           `json:"name"`
 	Size         []string         `json:"size"`
 	Origin       []string         `json:"origins"`
 	Colors       []string         `json:"colors"`
 	Images       []string         `json:"images"`
+	Lifespan     []uint64         `json:"lifeSpan"`
+	LitterSize   []uint64         `json:"litterSize"`
 	Temperaments []string         `json:"temperaments"`
 	OtherNames   []string         `json:"otherNames"`
 	BreedGroups  []string         `json:"breedGroups"`
