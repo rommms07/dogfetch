@@ -20,8 +20,10 @@ type BreedInfo struct {
 	BreedGroups  []string         `json:"breedGroups"`
 	BreedChars   map[string]int64 `json:"breedChars"`
 	BreedRecs    []string         `json:"breedRecs"`
-	Refs         []string         `json:"refs"`
+	Refs         map[string]any   `json:"refs"`
 }
+
+type Refs = map[string]map[string]string
 
 func init() {
 	fetchDogBreeds()
