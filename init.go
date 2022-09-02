@@ -2,9 +2,11 @@ package dogfetch
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	URL "net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -86,7 +88,7 @@ func crawlPage(path string) {
 	// After digging all information from various resources, we add the default resource into the
 	// references field of the object.
 	fetchResult[sum].Id = sum
-	fetchResult[sum].Refs = append(fetchResult[sum].Refs, string(Source1)+path)
+	getReferencesData(fetchResult[sum], []string{string(Source1) + path})
 	mu.Unlock()
 
 	wg.Done()
@@ -123,18 +125,22 @@ func digPage(P []byte) (bi *BreedInfo) {
 	indices = refsPatt.FindSubmatchIndex(P)
 	refs := refsPatt.Expand([]byte{}, []byte(`$url`), P, indices)
 	hrefPatt := regexp.MustCompile(`href="(?P<url>.+?)"`)
+	urls := []string{}
 	for _, indices := range hrefPatt.FindAllSubmatchIndex(refs, -1) {
 		href := string(hrefPatt.Expand([]byte{}, []byte(`$url`), refs, indices))
 
 		if strings.Contains(href, "//") {
 			href = regexp.MustCompile(`^//`).ReplaceAllString(href, "https://")
-			bi.Refs = append(bi.Refs, href)
+			urls = append(urls, href)
 			continue
 		}
 
-		bi.Refs = append(bi.Refs, string(Source1)+href)
+		urls = append(urls, string(Source1)+href)
 		bi.BreedRecs = append(bi.BreedRecs, utils.GetMd5Sum(href))
 	}
+
+	bi.Refs = make(map[string]any)
+	getReferencesData(bi, urls)
 
 	for _, indices := range otherNamesPatt.FindAllSubmatchIndex(P, -1) {
 		otherNames := string(otherNamesPatt.Expand([]byte{}, []byte(`$otherNames`), P, indices))
@@ -214,6 +220,95 @@ func digPage(P []byte) (bi *BreedInfo) {
 	bi.History = string(history)
 
 	return
+}
+
+func getReferencesData(bi *BreedInfo, urls []string) {
+	youtubeUrlPatt := regexp.MustCompile("youtube\\.com")
+	pdfPatt := regexp.MustCompile("\\.pdf")
+
+	for _, href := range urls {
+		wg.Add(1)
+		(func(bi *BreedInfo, href string) {
+			var data any
+			var res *utils.CacheResponse
+
+			if youtubeUrlPatt.MatchString(href) {
+				res, _ = utils.NewCacheResponse("https://www.youtube.com/oembed?url=" + href)
+				P, _ := io.ReadAll(res.Body)
+				data = make(map[string]any)
+
+				json.Unmarshal(P, &data)
+			} else if pdfPatt.MatchString(href) {
+				data = href
+			} else {
+				res, _ = utils.NewCacheResponse(href)
+				P, _ := io.ReadAll(res.Body)
+				metaData := make(map[string]any)
+				isSpecialCase := false
+
+				ogMetaPatt := []string{
+					`(<meta.*?name\="?twitter:title"?.*?content\="(?P<title>[^/>]+?)".*?>|<meta.*?property\="?og:title"?.*?content\="(?P<title>[^/>]+?)".*?>|<title>(?P<title>[^/]+)<\/title>)`,
+					`(<meta.*?property\="?twitter:description"?.*?content\="(?P<desc>[^/>]?).*?>|<meta.*?property\="?og:description"?.*?content\="(?P<desc>[^/>]+?)".*?>|<meta.*?name\="description".*?content\="(?P<desc>[^/]+?)".*?>|<h3>一般外貌<\/h3>.*?<dd>.*?<p>(?P<desc>[^/>]+?)<\/p>.*?<\/dd>)`,
+				}
+
+				oGraphPatt := regexp.MustCompile("(?s)" + strings.Join(ogMetaPatt, ".+?"))
+				mainSitePatt := regexp.MustCompile("(dogbreedslist\\.info|www\\.wikihow\\.com)")
+
+				indices := oGraphPatt.FindSubmatchIndex(P)
+				oGraphDataBs := oGraphPatt.Expand([]byte{}, []byte(`$title@#$desc@#$title@#$ogUrl@#$ogSiteName`), P, indices)
+				oGraphData := strings.Split(string(oGraphDataBs), "@#")
+
+				if len(strings.TrimSpace(strings.Join(oGraphData, ""))) != 0 {
+					metaData["title"] = oGraphData[0]
+					metaData["description"] = oGraphData[1]
+				} else {
+					isSpecialCase = true
+				}
+
+				if !mainSitePatt.Match(P) {
+					phref, _ := URL.Parse(href)
+					jpegRef := regexp.MustCompile(`<img.*?(loading="lazy".*?data-src\="(?P<image>https?://.*?\.jpg)\"|src\="(?P<image>(.*?\/img\/breeds\/[^/>"]*)[^/>"]*?)").*?>`)
+					indices := jpegRef.FindAllSubmatchIndex(P, -1)
+
+					images := make(map[string]bool)
+					for _, index := range indices {
+						matchBs := jpegRef.Expand([]byte{}, []byte("$image"), P, index)
+
+						if !images[string(matchBs)] {
+							images[string(matchBs)] = true
+						}
+					}
+
+					for image := range images {
+						if regexp.MustCompile(`.*?Danish.*?`).MatchString(image) {
+							continue
+						}
+
+						if !regexp.MustCompile(`https?:\/\/`).MatchString(image) {
+							bi.Images = append(bi.Images, fmt.Sprintf("%s://%s%s", phref.Scheme, phref.Host, image[0:]))
+							continue
+						}
+
+						bi.Images = append(bi.Images, image)
+					}
+				}
+
+				if !isSpecialCase {
+					data = metaData
+				} else {
+					data = href
+				}
+			}
+
+			if res != nil {
+				defer res.Body.Close()
+			}
+
+			bi.Refs[href] = data
+			wg.Done()
+		})(bi, href)
+	}
+
 }
 
 func getResults(patt *regexp.Regexp, sep string, tmp, P []byte) []string {
