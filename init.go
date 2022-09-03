@@ -98,6 +98,7 @@ func crawlPage(path string) {
 func digPage(P []byte) (bi *BreedInfo) {
 	bi = &BreedInfo{
 		BreedChars: make(map[string]int64),
+		Refs:       make(map[string]any),
 	}
 
 	mainFmt := `(?m)(?s)<div class="content">(.|\n)*?`
@@ -139,7 +140,6 @@ func digPage(P []byte) (bi *BreedInfo) {
 		bi.BreedRecs = append(bi.BreedRecs, utils.GetMd5Sum(href))
 	}
 
-	bi.Refs = make(map[string]any)
 	getReferencesData(bi, urls)
 
 	for _, indices := range otherNamesPatt.FindAllSubmatchIndex(P, -1) {
@@ -308,7 +308,6 @@ func getReferencesData(bi *BreedInfo, urls []string) {
 			wg.Done()
 		})(bi, href)
 	}
-
 }
 
 func getResults(patt *regexp.Regexp, sep string, tmp, P []byte) []string {

@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
 )
@@ -44,24 +43,13 @@ func NewCacheResponse(resUrl string) (cacheRes *CacheResponse, key string) {
 }
 
 var fetch = func(resUrl string) (cache *http.Response) {
-	host, _ := url.Parse(resUrl)
+	// host, _ := url.Parse(resUrl)
 	req, err := http.NewRequest(http.MethodGet, resUrl, nil)
 	if err != nil {
 		log.Fatalf("Something went wrong while creating a new request. (err: %v)", err)
 	}
 
-	req.Header.Add("Content-Type", "text/plain")
-	req.Header.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-	req.Header.Add("Accept-Encoding", "gzip, deflate, br")
-	req.Header.Add("Accept-Language", "en-US,en;q=0.7,ja;q=0.3")
-	req.Header.Add("Host", host.Host)
 	req.Header.Add("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:103.0) Gecko/20100101 Firefox/103.0")
-	req.Header.Add("Sec-Fetch-Dest", "document")
-	req.Header.Add("Sec-Fetch-Mode", "cors")
-	req.Header.Add("Sec-Fetch-Site", "none")
-	req.Header.Add("Sec-Fetch-User", "?1")
-	req.Header.Add("Upgrade-Insecure-Requests", "1")
-	req.Header.Add("Connection", "keep-alive")
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {

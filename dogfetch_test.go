@@ -103,22 +103,6 @@ func Test_crawlPage(t *testing.T) {
 				expect.breedInfo.Name)
 		}
 
-		var refs int
-
-		// Check if the URL references field contains the tested URL above.
-		// if not we issue an assertion error.
-		for _, ref := range res.Refs {
-			for _, expRef := range expect.breedInfo.Refs {
-				if expRef == ref {
-					refs++
-				}
-			}
-		}
-
-		if float64(refs)/float64(len(res.Refs)) < 0.5 {
-			t.Errorf("(fail) Digged reference is incomplete, verify it!")
-		}
-
 		for _, expectName := range expect.breedInfo.OtherNames {
 			contains := false
 
