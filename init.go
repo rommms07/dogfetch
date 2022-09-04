@@ -87,10 +87,12 @@ func crawlPage(path string) {
 
 	// After digging all information from various resources, we add the default resource into the
 	// references field of the object.
+	//
 	fetchResult[sum].Id = sum
-	getReferencesData(fetchResult[sum], []string{string(Source1) + path})
-	mu.Unlock()
 
+	getReferencesData(fetchResult[sum], []string{string(Source1) + path})
+
+	mu.Unlock()
 	wg.Done()
 	<-queue
 }
@@ -228,12 +230,14 @@ func getReferencesData(bi *BreedInfo, urls []string) {
 
 	for _, href := range urls {
 		wg.Add(1)
-		(func(bi *BreedInfo, href string) {
+		go (func(bi *BreedInfo, href string) {
 			var data any
 			var res *utils.CacheResponse
 
 			if youtubeUrlPatt.MatchString(href) {
+				mu.Lock()
 				res, _ = utils.NewCacheResponse("https://www.youtube.com/oembed?url=" + href)
+				mu.Unlock()
 				P, _ := io.ReadAll(res.Body)
 				data = make(map[string]any)
 
@@ -241,7 +245,9 @@ func getReferencesData(bi *BreedInfo, urls []string) {
 			} else if pdfPatt.MatchString(href) {
 				data = href
 			} else {
+				mu.Lock()
 				res, _ = utils.NewCacheResponse(href)
+				mu.Unlock()
 				P, _ := io.ReadAll(res.Body)
 				metaData := make(map[string]any)
 				isSpecialCase := false
@@ -304,7 +310,10 @@ func getReferencesData(bi *BreedInfo, urls []string) {
 				defer res.Body.Close()
 			}
 
+			mu.Lock()
 			bi.Refs[href] = data
+			mu.Unlock()
+
 			wg.Done()
 		})(bi, href)
 	}

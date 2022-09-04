@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -10,7 +11,7 @@ import (
 )
 
 var (
-	savedCachePath = "/tmp/go-tmp/"
+	savedCachePath = fmt.Sprintf("%s/.breeds/", os.Getenv("HOME"))
 )
 
 func init() {
